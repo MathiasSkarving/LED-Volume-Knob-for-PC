@@ -24,27 +24,37 @@ int lastDir;
 int activeLeds;
 CRGB leds[NUM_LEDS];
 
-// For volume control
-uint8_t const desc_hid_report[] = {
-  TUD_HID_REPORT_DESC_CONSUMER()
+// For PC Volume
+enum {
+  RID_KEYBOARD = 1,
+  RID_MOUSE,
+  RID_CONSUMER_CONTROL,
 };
+
+// HID report descriptor using TinyUSB's template
+uint8_t const desc_hid_report[] = {
+    TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(RID_KEYBOARD)),
+    TUD_HID_REPORT_DESC_MOUSE   (HID_REPORT_ID(RID_MOUSE)),
+    TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(RID_CONSUMER_CONTROL))
+};
+
 Adafruit_USBD_HID usb_hid;
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
-
   if (!TinyUSBDevice.isInitialized()) {
     TinyUSBDevice.begin(0);
   }
+  
+  Serial.begin(115200);
+  delay(1000);
 
-  usb_hid.setBootProtocol(HID_ITF_PROTOCOL_KEYBOARD);
   usb_hid.setPollInterval(2);
   usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
   usb_hid.setStringDescriptor("Volume Knob");
-
   usb_hid.begin();
   delay(1000);
+
+  lastclk = digitalRead(CLK);
 
   if (TinyUSBDevice.mounted()) {
     TinyUSBDevice.detach();
@@ -52,8 +62,7 @@ void setup() {
     TinyUSBDevice.attach();
   }
 
-  lastclk = digitalRead(CLK);
-
+  delay(1000);
   FastLED.addLeds<NEOPIXEL, LED_RING_DATA>(leds, NUM_LEDS);  // GRB ordering is assumed
 
   pinMode(CLK, INPUT_PULLUP);
@@ -64,6 +73,13 @@ void setup() {
 }
 
 void loop() {
+  #ifdef TINYUSB_NEED_POLLING_TASK
+  TinyUSBDevice.task();
+  #endif
+  if (!TinyUSBDevice.mounted()) {
+    return;
+  }
+
   uint8_t clk = digitalRead(CLK);
 
   if (clk != lastclk) {
@@ -131,20 +147,18 @@ void loop() {
 void sendConsumerKey(uint16_t key) {
   if (!usb_hid.ready()) return;
 
-  usb_hid.sendReport(0, &key, sizeof(key));
-  delay(5);
-
-  key = 0;
-  usb_hid.sendReport(0, &key, sizeof(key));
-  delay(5);
+  usb_hid.sendReport16(RID_KEYBOARD, key);
+  delay(2);
+  usb_hid.sendReport16(RID_KEYBOARD, 0);
+  delay(2);
 }
 
 void volumeUp() {
-  sendConsumerKey(HID_USAGE_CONSUMER_VOLUME_INCREMENT);
+  sendConsumerKey(HID_KEY_VOLUME_UP);
 }
 
 void volumeDown() {
-  sendConsumerKey(HID_USAGE_CONSUMER_VOLUME_DECREMENT);
+  sendConsumerKey(HID_KEY_VOLUME_DOWN);
 }
 
 void mute() {
