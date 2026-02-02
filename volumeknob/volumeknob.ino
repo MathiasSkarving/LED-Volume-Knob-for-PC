@@ -12,15 +12,20 @@ float counter = 0;
 uint8_t intCounter = 0;
 uint8_t lastclk;
 volatile int interruptDelta = 0;
+unsigned long lastDecay = 0;
 
 // For switch
 int lastPress;
+bool justPressed = false;
+volatile bool switchTriggered = false;
 
 // For LEDS
 int activeLeds;
 unsigned long prev;
 CRGB leds[NUM_LEDS];
 int ledMode = 0;
+int lastCycle = 0;
+int offset = 0;
 
 // For PC Volume
 enum {
@@ -84,30 +89,35 @@ void loop() {
   TinyUSBDevice.task();
 #endif
 
+  Serial.println(ledMode);
   readEncoder();
-
   readSwitch();
 
   switch (ledMode) {
     case 0:
       {
-        rainbowLed();
+        rainbowCycle();
         break;
       }
     case 1:
       {
-        bloodCycle();
+        dynamicBlood();
+        break;
+      }
+    case 2:
+      {
+        dynamicSolidRainbow();
         break;
       }
     default:
       {
-        ledMode = 0;
+        ledMode = 1;
         break;
       }
   }
 }
 
-void rainbowLed() {
+void dynamicSolidRainbow() {
   int ledCount = constrain(abs(counter) / 3.0, 0, NUM_LEDS);
 
   fill_solid(leds, NUM_LEDS, CRGB::Black);
@@ -126,52 +136,69 @@ void rainbowLed() {
   FastLED.show();
 }
 
-void bloodCycle() {
-  fill_solid(leds, NUM_LEDS, CHSV(0, 255, 20));
+void dynamicBlood() {
+  int ledCount = constrain(abs(counter) / 3.0, 0, NUM_LEDS);
 
-  int pos;
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+
   if (counter > 0) {
-    pos = constrain(abs(counter) / 3.0, 0, NUM_LEDS - 1);
+    for (int i = 0; i < ledCount; i++) {
+      leds[i] = CHSV(0, map(i, 0, 11, 100, 255), 150);
+    }
   } else if (counter < 0) {
-    pos = (NUM_LEDS - 1) - constrain(abs(counter) / 3.0, 0, NUM_LEDS - 1);
-  } else {
-    FastLED.show(); 
-    return;
+    for (int i = 0; i < ledCount; i++) {
+      leds[NUM_LEDS - 1 - i] = CHSV(0, map(i, 0, 11, 100, 255), 150);
+    }
+  }
+  FastLED.show();
+}
+
+void rainbowCycle() {
+  if (millis() - lastCycle > 20) {
+    offset++;
+    lastCycle = millis();
   }
 
-  leds[pos] = CHSV(0, 255, 255);
-
-  if(pos > 0) {
-    leds[pos-1] = CHSV(0, 255, 130);
-    leds[pos+1] = CHSV(0, 255, 130);
-  } 
-  else if(pos < NUM_LEDS-1) {
-    leds[pos-1] = CHSV(0, 255, 130);
-    leds[pos+1] = CHSV(0, 255, 130);
+  for(int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CHSV((i * 256 / NUM_LEDS) + offset, 255, 150);
   }
 
   FastLED.show();
 }
 
 void readSwitch() {
-  if (digitalRead(SWITCH) == LOW) {
-    delay(50); 
-    if (digitalRead(SWITCH) == HIGH) return; 
+  if ((digitalRead(SWITCH) == LOW)) {
+    delayMicroseconds(200);
+    bool currentState = digitalRead(SWITCH);
 
-    lastPress = millis();
-    while (digitalRead(SWITCH) == LOW) {
+    if (currentState == LOW) {
+      if (!justPressed) {
+        justPressed = true;
+        lastPress = millis();
+      }
+
       if (millis() - lastPress > 1000) {
         ledMode++;
-        if (ledMode > 1) {
+        if (ledMode > 2) {
           ledMode = 0;
         }
         animateModeChange(ledMode);
         Serial.print("Selected mode ");
         Serial.println(ledMode);
-        
-        while(digitalRead(SWITCH) == LOW) { delay(10); } 
+
+        justPressed = false;
         return;
       }
+    } else {
+      justPressed = false;
+      return;
+    }
+  } else {
+    if (justPressed) {
+      if (millis() - lastPress < 1000) {
+        mute();
+      }
+      justPressed = false;
     }
   }
 }
@@ -200,8 +227,15 @@ void readEncoder() {
     prev = millis();
   }
 
-  if (millis() - prev > 1000) {
-    counter *= 0.995;
+  if (millis() - prev > 750 && millis() - lastDecay > 10) {
+    lastDecay = millis();
+    if (counter > 0.5) {
+      counter -= 0.5;
+    } else if (counter < -0.5) {
+      counter += 0.5;
+    } else {
+      counter = 0;
+    }
   }
 }
 
@@ -222,16 +256,9 @@ void animateModeChange(int mode) {
   FastLED.show();
   delay(100);
 
-  CRGB color;
-  switch (mode) {
-    case 0: color = CRGB::Blue; break;
-    case 1: color = CRGB::Green; break;
-    case 2: color = CRGB::Purple; break;
-    case 3: color = CRGB::Red; break;
-    default: color = CRGB::White; break;
-  }
+  CRGB color = CHSV(0, 0, 100);
 
-  for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
     fill_solid(leds, NUM_LEDS, color);
     FastLED.show();
     delay(100);
