@@ -214,7 +214,7 @@ void setup()
 
   Serial.println("USB Serial Ready");
 
-  FastLED.addLeds<WS2812B, LED_RING_DATA, RGB>(leds, NUM_LEDS);
+  FastLED.addLeds<WS2812B, LED_RING_DATA, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(100);
   FastLED.show();
 
