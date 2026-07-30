@@ -11,10 +11,10 @@
 
 // For counter
 float counter = 0;
-uint8_t intCounter = 0;
+float counterLimit = 30;
 uint8_t lastCLK = 0;
-volatile int encoderDelta = 0;
 unsigned long lastDecay = 0;
+
 
 // For switch
 int lastSwitchModeTime = 0;
@@ -187,6 +187,14 @@ void readEncoder()
     if (counter > 0.5)
     {
       counter -= 0.5;
+    }
+    else if (counter > counterLimit)
+    {
+      counter = counterLimit;
+    }
+    else if (counter < -counterLimit)
+    {
+      counter = -counterLimit;
     }
     else if (counter < -0.5)
     {
