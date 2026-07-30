@@ -17,9 +17,7 @@ volatile int encoderDelta = 0;
 unsigned long lastDecay = 0;
 
 // For switch
-int lastPress;
-bool justPressed = false;
-volatile bool switchTriggered = false;
+int lastSwitchModeTime = 0;
 
 // For LEDS
 int activeLeds;
@@ -28,16 +26,6 @@ CRGB leds[NUM_LEDS];
 int ledMode = 0;
 int lastCycle = 0;
 int offset = 0;
-
-// For PC Volume
-enum
-{
-  RID_CONSUMER_CONTROL = 1,
-};
-
-// HID report descriptor using TinyUSB's template
-uint8_t const desc_hid_report[] = {
-    TUD_HID_REPORT_DESC_CONSUMER(HID_REPORT_ID(RID_CONSUMER_CONTROL))};
 
 USBHIDConsumerControl ConsumerControl;
 
@@ -77,7 +65,7 @@ void mute()
 
 void dynamicSolidRainbow()
 {
-  int ledCount = constrain(abs(counter) / 3.0, 0, NUM_LEDS);
+  int ledCount = constrain(abs(counter) / 2.0, 0, NUM_LEDS);
 
   fill_solid(leds, NUM_LEDS, CRGB::Black);
 
@@ -101,7 +89,7 @@ void dynamicSolidRainbow()
 
 void dynamicBlood()
 {
-  int ledCount = constrain(abs(counter) / 3.0, 0, NUM_LEDS);
+  int ledCount = constrain(abs(counter) / 2.0, 0, NUM_LEDS);
 
   fill_solid(leds, NUM_LEDS, CRGB::Black);
 
@@ -142,18 +130,20 @@ void readSwitch()
 {
   if ((digitalRead(SWITCH) == LOW))
   {
+    // Debounce
     delayMicroseconds(200);
     bool currentState = digitalRead(SWITCH);
+    int start = millis();
 
-    if (currentState == LOW)
+    while (currentState == LOW)
     {
-      if (!justPressed)
+      if (digitalRead(SWITCH) == HIGH && (millis() - lastSwitchModeTime > 1000))
       {
-        justPressed = true;
-        lastPress = millis();
+        mute();
+        return;
       }
 
-      if (millis() - lastPress > 1000)
+      if (millis() - start > 1000)
       {
         ledMode++;
         if (ledMode > 2)
@@ -163,26 +153,9 @@ void readSwitch()
         animateModeChange(ledMode);
         Serial.print("Selected mode ");
         Serial.println(ledMode);
-
-        justPressed = false;
+        lastSwitchModeTime = millis();
         return;
       }
-    }
-    else
-    {
-      justPressed = false;
-      return;
-    }
-  }
-  else
-  {
-    if (justPressed)
-    {
-      if (millis() - lastPress < 1000)
-      {
-        mute();
-      }
-      justPressed = false;
     }
   }
 }
@@ -241,10 +214,8 @@ void setup()
 
   Serial.println("USB Serial Ready");
 
-  FastLED.addLeds<WS2812B, LED_RING_DATA>(leds, NUM_LEDS);
+  FastLED.addLeds<WS2812B, LED_RING_DATA, RGB>(leds, NUM_LEDS);
   FastLED.setBrightness(100);
-
-  fill_solid(leds, NUM_LEDS, CRGB::Red);
   FastLED.show();
 
   pinMode(CLK, INPUT_PULLUP);
