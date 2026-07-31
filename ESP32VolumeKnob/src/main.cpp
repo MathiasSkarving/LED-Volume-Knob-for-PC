@@ -15,7 +15,6 @@ float counterLimit = 30;
 uint8_t lastCLK = 0;
 unsigned long lastDecay = 0;
 
-
 // For switch
 int lastSwitchModeTime = 0;
 
@@ -97,14 +96,14 @@ void dynamicBlood()
   {
     for (int i = 0; i < ledCount; i++)
     {
-      leds[i] = CHSV(0, map(i, 0, 11, 100, 255), 150);
+      leds[i] = CHSV(0, map(i, 0, 11, 100, 255), 255);
     }
   }
   else if (counter < 0)
   {
     for (int i = 0; i < ledCount; i++)
     {
-      leds[NUM_LEDS - 1 - i] = CHSV(0, map(i, 0, 11, 100, 255), 150);
+      leds[NUM_LEDS - 1 - i] = CHSV(0, map(i, 0, 11, 100, 255), 255);
     }
   }
   FastLED.show();
@@ -120,7 +119,37 @@ void rainbowCycle()
 
   for (int i = 0; i < NUM_LEDS; i++)
   {
-    leds[i] = CHSV((i * 256 / NUM_LEDS) + offset, 255, 150);
+    leds[i] = CHSV((i * 256 / NUM_LEDS) + offset, 255, 255);
+  }
+
+  FastLED.show();
+}
+
+void randomColors()
+{
+  if (millis() - lastCycle > 50)
+  {
+    lastCycle = millis();
+
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      leds[i] = CHSV(random(0, 255), 255, 255);
+    }
+  }
+
+  FastLED.show();
+}
+
+void fireAnimation()
+{
+  if (millis() - lastCycle > 20)
+  {
+    lastCycle = millis();
+
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      leds[i] = CHSV(random(0, 60), 255, random(100, 255));
+    }
   }
 
   FastLED.show();
@@ -146,7 +175,7 @@ void readSwitch()
       if (millis() - start > 1000)
       {
         ledMode++;
-        if (ledMode > 2)
+        if (ledMode > 4)
         {
           ledMode = 0;
         }
@@ -255,6 +284,16 @@ void loop()
   case 2:
   {
     dynamicSolidRainbow();
+    break;
+  }
+  case 3:
+  {
+    fireAnimation();
+    break;
+  }
+  case 4:
+  {
+    randomColors();
     break;
   }
   default:
