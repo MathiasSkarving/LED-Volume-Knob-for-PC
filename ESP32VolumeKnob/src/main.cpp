@@ -2,12 +2,21 @@
 #include "USB.h"
 #include "USBHIDConsumerControl.h"
 #include <FastLED.h>
+#include <ArduinoJson.h>
 
 #define LED_RING_DATA 16
 #define SWITCH 15
 #define DT 17
 #define CLK 18
 #define NUM_LEDS 12
+
+enum ButtonState
+{
+  IDLE,
+  PRESSED,
+  WAITING_FOR_DOUBLE_CLICK,
+  LONG_PRESSED,
+};
 
 // For counter
 float counter = 0;
@@ -16,7 +25,10 @@ uint8_t lastCLK = 0;
 unsigned long lastDecay = 0;
 
 // For switch
-int lastSwitchModeTime = 0;
+long pressStartTime = 0;
+long clickTime = 0;
+long lastMuteOrNextSong = 0;
+ButtonState buttonState = IDLE;
 
 // For LEDS
 int activeLeds;
@@ -50,16 +62,29 @@ void animateModeChange(int mode)
 void volumeUp()
 {
   ConsumerControl.press(CONSUMER_CONTROL_VOLUME_INCREMENT);
+  delay(2);
+  ConsumerControl.release();
 }
 
 void volumeDown()
 {
   ConsumerControl.press(CONSUMER_CONTROL_VOLUME_DECREMENT);
+  delay(2);
+  ConsumerControl.release();
 }
 
 void mute()
 {
   ConsumerControl.press(CONSUMER_CONTROL_MUTE);
+  delay(2);
+  ConsumerControl.release();
+}
+
+void nextSong()
+{
+  ConsumerControl.press(CONSUMER_CONTROL_SCAN_NEXT);
+  delay(2);
+  ConsumerControl.release();
 }
 
 void dynamicSolidRainbow()
@@ -127,7 +152,7 @@ void rainbowCycle()
 
 void randomColors()
 {
-  if (millis() - lastCycle > 50)
+  if (millis() - lastCycle > 100)
   {
     lastCycle = millis();
 
@@ -142,13 +167,13 @@ void randomColors()
 
 void fireAnimation()
 {
-  if (millis() - lastCycle > 20)
+  if (millis() - lastCycle > 100)
   {
     lastCycle = millis();
 
     for (int i = 0; i < NUM_LEDS; i++)
     {
-      leds[i] = CHSV(random(0, 60), 255, random(100, 255));
+      leds[i] = CHSV(random(0, 45), 255, random(100, 255));
     }
   }
 
@@ -157,35 +182,57 @@ void fireAnimation()
 
 void readSwitch()
 {
-  if ((digitalRead(SWITCH) == LOW))
+  bool pressed = digitalRead(SWITCH) == LOW;
+
+  switch (buttonState)
   {
-    // Debounce
-    delayMicroseconds(200);
-    bool currentState = digitalRead(SWITCH);
-    int start = millis();
-
-    while (currentState == LOW)
+  case IDLE:
+    if (pressed)
     {
-      if (digitalRead(SWITCH) == HIGH && (millis() - lastSwitchModeTime > 1000))
-      {
-        mute();
-        return;
-      }
-
-      if (millis() - start > 1000)
-      {
-        ledMode++;
-        if (ledMode > 4)
-        {
-          ledMode = 0;
-        }
-        animateModeChange(ledMode);
-        Serial.print("Selected mode ");
-        Serial.println(ledMode);
-        lastSwitchModeTime = millis();
-        return;
-      }
+      pressStartTime = millis();
+      buttonState = PRESSED;
     }
+    break;
+
+  case PRESSED:
+    if (!pressed)
+    {
+      // Released before long press
+      clickTime = millis();
+      buttonState = WAITING_FOR_DOUBLE_CLICK;
+    }
+    else if (pressed && millis() - pressStartTime > 1000)
+    {
+      buttonState = LONG_PRESSED;
+    }
+    break;
+
+  case LONG_PRESSED:
+    if (!pressed)
+    {
+      ledMode++;
+      if (ledMode > 4)
+      {
+        ledMode = 0;
+      }
+      animateModeChange(ledMode);
+      buttonState = IDLE;
+    }
+    break;
+  case WAITING_FOR_DOUBLE_CLICK:
+    if (pressed && millis() - lastMuteOrNextSong > 500)
+    {
+      lastMuteOrNextSong = millis();
+      nextSong();
+      buttonState = IDLE;
+    }
+    else if (millis() - clickTime > 250 && !pressed && millis() - lastMuteOrNextSong > 500)
+    {
+      lastMuteOrNextSong = millis();
+      mute();
+      buttonState = IDLE;
+    }
+    break;
   }
 }
 
@@ -195,6 +242,19 @@ void readEncoder()
 
   if (clk != lastCLK)
   {
+    if(clk == HIGH)
+    {
+      if (digitalRead(DT) != clk)
+      {
+        volumeUp();
+        counter += 1;
+      }
+      else
+      {
+        volumeDown();
+        counter -= 1;
+      }
+    }
     if (digitalRead(DT) != clk)
     {
       volumeUp();
