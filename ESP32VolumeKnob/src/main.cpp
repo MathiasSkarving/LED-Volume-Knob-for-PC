@@ -275,22 +275,25 @@ void readEncoder()
 
   if (pos != lastPos)
   {
-
-    int speed = encoder.getRPM() / 60;
-    if (speed < 1) {
+    // Dividing by 120 gives us a speed factor that works well with the encoder's resolution and the desired volume change rate.
+    int speed = encoder.getRPM() / 120;
+    if (speed < 1)
+    {
       speed = 1;
-    } else if (speed > 2) {
-      speed = 2;
+    }
+    else if (speed > 3)
+    {
+      speed = 3;
     }
     if (encoder.getDirection() == RotaryEncoder::Direction::COUNTERCLOCKWISE)
     {
       volumeUp();
-      counter += 1 * speed;
+      counter += 0.5 * speed;
     }
     else
     {
       volumeDown();
-      counter -= 1 * speed;
+      counter -= 0.5 * speed;
     }
     prev = millis();
   }
