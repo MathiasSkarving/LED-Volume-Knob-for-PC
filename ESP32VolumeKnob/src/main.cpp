@@ -41,6 +41,8 @@ ButtonState buttonState = IDLE;
 int activeLeds;
 unsigned long prev;
 CRGB leds[NUM_LEDS];
+int counterChangeRate = 2;
+int counterDecayRate = 1;
 int ledMode = 0;
 int lastCycle = 0;
 int offset = 0;
@@ -103,7 +105,7 @@ void previousSong()
 
 void dynamicSolidRainbow()
 {
-  int ledCount = constrain(abs(counter) / 2.0, 0, NUM_LEDS);
+  int ledCount = constrain(abs(counter), 0, NUM_LEDS);
 
   fill_solid(leds, NUM_LEDS, CRGB::Black);
 
@@ -127,7 +129,7 @@ void dynamicSolidRainbow()
 
 void dynamicBlood()
 {
-  int ledCount = constrain(abs(counter) / 2.0, 0, NUM_LEDS);
+  int ledCount = constrain(abs(counter), 0, NUM_LEDS);
 
   fill_solid(leds, NUM_LEDS, CRGB::Black);
 
@@ -207,7 +209,6 @@ void readSwitch()
       buttonState = PRESSED;
     }
     break;
-
   case PRESSED:
     if (!pressed)
     {
@@ -274,15 +275,22 @@ void readEncoder()
 
   if (pos != lastPos)
   {
+
+    int speed = encoder.getRPM() / 60;
+    if (speed < 1) {
+      speed = 1;
+    } else if (speed > 2) {
+      speed = 2;
+    }
     if (encoder.getDirection() == RotaryEncoder::Direction::COUNTERCLOCKWISE)
-    { 
+    {
       volumeUp();
-      counter += 1;
+      counter += 1 * speed;
     }
     else
     {
       volumeDown();
-      counter -= 1;
+      counter -= 1 * speed;
     }
     prev = millis();
   }
@@ -294,7 +302,7 @@ void readEncoder()
     lastDecay = millis();
     if (counter > 0.5)
     {
-      counter -= 0.5;
+      counter -= 0.5 * counterDecayRate;
     }
     else if (counter > counterLimit)
     {
@@ -306,7 +314,7 @@ void readEncoder()
     }
     else if (counter < -0.5)
     {
-      counter += 0.5;
+      counter += 0.5 * counterDecayRate;
     }
     else
     {
