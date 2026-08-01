@@ -1,8 +1,20 @@
 # LED Ring Volume Knob
 This is a project that utilizes out of the box ready components, so minimal components are required.
 
+# Table of Contents
+1. [How to use the volume knob](#Usage)
+2. [Components and tools needed](#ToolsandComponents)
+
+
+## How to use the Volume Knob
+<a name="Usage"></a>
+Rotation = Turn volume up and down
+Single click = Mute
+Double click = Next track
+Triple click = Previous track
 
 ## This project requires the following components:
+<a name="ToolsandComponents"></a>
 - ### ESP32S3-N16R8 with two USB C ports (Like on the image below)
 <img width="447" height="331" alt="image" src="https://github.com/user-attachments/assets/4c0a4eaa-ba83-4383-8726-f5c0acc2a211" />
 
