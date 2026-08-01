@@ -275,7 +275,7 @@ void readEncoder()
   if (pos != lastPos)
   {
     if (encoder.getDirection() == RotaryEncoder::Direction::COUNTERCLOCKWISE)
-    {
+    { 
       volumeUp();
       counter += 1;
     }
@@ -284,9 +284,8 @@ void readEncoder()
       volumeDown();
       counter -= 1;
     }
+    prev = millis();
   }
-
-  prev = millis();
 
   lastPos = pos;
 
