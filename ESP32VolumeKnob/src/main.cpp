@@ -3,6 +3,7 @@
 #include "USBHIDConsumerControl.h"
 #include <FastLED.h>
 #include <ArduinoJson.h>
+#include <RotaryEncoder.h>
 
 #define LED_RING_DATA 16
 #define SWITCH 15
@@ -21,11 +22,14 @@ enum ButtonState
   WAITING_FOR_RELEASE
 };
 
+// Encoder
+RotaryEncoder encoder(CLK, DT, RotaryEncoder::LatchMode::TWO03);
+
 // For counter
 float counter = 0;
 float counterLimit = 30;
-uint8_t lastCLK = 0;
-unsigned long lastDecay = 0;
+int lastPos = 0;
+int lastDecay = 0;
 
 // For switch
 long pressStartTime = 0;
@@ -227,7 +231,7 @@ void readSwitch()
   case WAITING_FOR_DOUBLE_CLICK:
     if (pressed && millis() - pressStartTime < 250)
     {
-      pressStartTime = millis();          
+      pressStartTime = millis();
       buttonState = WAITING_FOR_TRIPLE_CLICK;
     }
     else if (!pressed && millis() - lastLongPress > 1000 && millis() - pressStartTime > 250)
@@ -236,13 +240,13 @@ void readSwitch()
       buttonState = WAITING_FOR_RELEASE;
     }
     break;
-case WAITING_FOR_TRIPLE_CLICK:
+  case WAITING_FOR_TRIPLE_CLICK:
     if (!pressed && millis() - pressStartTime < 250)
     {
       buttonState = WAITING_FOR_TRIPLE_TIMEOUT;
     }
     break;
-case WAITING_FOR_TRIPLE_TIMEOUT:
+  case WAITING_FOR_TRIPLE_TIMEOUT:
     if (pressed && millis() - pressStartTime < 250)
     {
       previousSong();
@@ -265,24 +269,12 @@ case WAITING_FOR_TRIPLE_TIMEOUT:
 
 void readEncoder()
 {
-  int clk = digitalRead(CLK);
+  encoder.tick();
+  int pos = encoder.getPosition();
 
-  if (clk != lastCLK)
+  if (pos != lastPos)
   {
-    if (clk == HIGH)
-    {
-      if (digitalRead(DT) != clk)
-      {
-        volumeUp();
-        counter += 1;
-      }
-      else
-      {
-        volumeDown();
-        counter -= 1;
-      }
-    }
-    if (digitalRead(DT) != clk)
+    if (encoder.getDirection() == RotaryEncoder::Direction::COUNTERCLOCKWISE)
     {
       volumeUp();
       counter += 1;
@@ -292,10 +284,11 @@ void readEncoder()
       volumeDown();
       counter -= 1;
     }
-    prev = millis();
   }
 
-  lastCLK = clk;
+  prev = millis();
+
+  lastPos = pos;
 
   if (millis() - prev > 750 && millis() - lastDecay > 10)
   {
@@ -345,8 +338,6 @@ void setup()
   pinMode(CLK, INPUT_PULLUP);
   pinMode(DT, INPUT_PULLUP);
   pinMode(SWITCH, INPUT_PULLUP);
-
-  lastCLK = digitalRead(CLK);
 
   Serial.println("Ready");
 }
