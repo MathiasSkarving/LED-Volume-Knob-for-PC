@@ -15,7 +15,10 @@ enum ButtonState
   IDLE,
   PRESSED,
   WAITING_FOR_DOUBLE_CLICK,
+  WAITING_FOR_TRIPLE_CLICK,
+  WAITING_FOR_TRIPLE_TIMEOUT,
   LONG_PRESSED,
+  WAITING_FOR_RELEASE
 };
 
 // For counter
@@ -26,8 +29,8 @@ unsigned long lastDecay = 0;
 
 // For switch
 long pressStartTime = 0;
-long clickTime = 0;
-long lastMuteOrNextSong = 0;
+long doublePressStartTime = 0;
+long lastLongPress = 0;
 ButtonState buttonState = IDLE;
 
 // For LEDS
@@ -83,6 +86,13 @@ void mute()
 void nextSong()
 {
   ConsumerControl.press(CONSUMER_CONTROL_SCAN_NEXT);
+  delay(2);
+  ConsumerControl.release();
+}
+
+void previousSong()
+{
+  ConsumerControl.press(CONSUMER_CONTROL_SCAN_PREVIOUS);
   delay(2);
   ConsumerControl.release();
 }
@@ -197,8 +207,6 @@ void readSwitch()
   case PRESSED:
     if (!pressed)
     {
-      // Released before long press
-      clickTime = millis();
       buttonState = WAITING_FOR_DOUBLE_CLICK;
     }
     else if (pressed && millis() - pressStartTime > 1000)
@@ -206,30 +214,49 @@ void readSwitch()
       buttonState = LONG_PRESSED;
     }
     break;
-
   case LONG_PRESSED:
-    if (!pressed)
+    ledMode++;
+    if (ledMode > 4)
     {
-      ledMode++;
-      if (ledMode > 4)
-      {
-        ledMode = 0;
-      }
-      animateModeChange(ledMode);
-      buttonState = IDLE;
+      ledMode = 0;
     }
+    animateModeChange(ledMode);
+    lastLongPress = millis();
+    buttonState = IDLE;
     break;
   case WAITING_FOR_DOUBLE_CLICK:
-    if (pressed && millis() - lastMuteOrNextSong > 500)
+    if (pressed && millis() - pressStartTime < 250)
     {
-      lastMuteOrNextSong = millis();
-      nextSong();
-      buttonState = IDLE;
+      pressStartTime = millis();          
+      buttonState = WAITING_FOR_TRIPLE_CLICK;
     }
-    else if (millis() - clickTime > 250 && !pressed && millis() - lastMuteOrNextSong > 500)
+    else if (!pressed && millis() - lastLongPress > 1000 && millis() - pressStartTime > 250)
     {
-      lastMuteOrNextSong = millis();
       mute();
+      buttonState = WAITING_FOR_RELEASE;
+    }
+    break;
+case WAITING_FOR_TRIPLE_CLICK:
+    if (!pressed && millis() - pressStartTime < 250)
+    {
+      buttonState = WAITING_FOR_TRIPLE_TIMEOUT;
+    }
+    break;
+case WAITING_FOR_TRIPLE_TIMEOUT:
+    if (pressed && millis() - pressStartTime < 250)
+    {
+      previousSong();
+      buttonState = WAITING_FOR_RELEASE;
+    }
+    else if (millis() - pressStartTime > 250)
+    {
+      nextSong();
+      buttonState = WAITING_FOR_RELEASE;
+    }
+    break;
+  case WAITING_FOR_RELEASE:
+    if (!pressed)
+    {
       buttonState = IDLE;
     }
     break;
@@ -242,7 +269,7 @@ void readEncoder()
 
   if (clk != lastCLK)
   {
-    if(clk == HIGH)
+    if (clk == HIGH)
     {
       if (digitalRead(DT) != clk)
       {
