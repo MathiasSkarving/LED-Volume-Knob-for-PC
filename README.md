@@ -9,8 +9,11 @@ This is a project that utilizes out of the box ready components, so minimal comp
 ## How to use the Volume Knob
 <a name="Usage"></a>
 Rotation = Turn volume up and down
+
 Single click = Mute
+
 Double click = Next track
+
 Triple click = Previous track
 
 ## This project requires the following components:
