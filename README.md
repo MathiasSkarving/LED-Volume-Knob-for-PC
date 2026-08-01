@@ -27,7 +27,7 @@ Triple click = Previous track
 - ### Rotary encoder (6mm shaft diameter)
 <img width="461" height="461" alt="image" src="https://github.com/user-attachments/assets/32950ed4-695a-4e76-89fb-333c9532cf14" />
 
-- ### 4 short M3 bolts (6-10mm) and 4 long M3 bolts (25-30mm)
+- ### 4 short M3 bolts (6-10mm) and 4 long M3 bolts (20-25mm)
 
 ## Tools needed:
 - ### Silicone electrical wire
