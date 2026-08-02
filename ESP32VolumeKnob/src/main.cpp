@@ -24,6 +24,9 @@ enum ButtonState
 
 // Encoder
 RotaryEncoder encoder(CLK, DT, RotaryEncoder::LatchMode::TWO03);
+RotaryEncoder::Direction lastEncoderDirection;
+RotaryEncoder::Direction lastEncoderDirectionExlcudingIdle;
+int RPM = 0;
 
 // For counter
 float counter = 0;
@@ -45,7 +48,8 @@ int counterChangeRate = 2;
 int counterDecayRate = 1;
 int ledMode = 0;
 int lastCycle = 0;
-int offset = 0;
+float offset = 0;
+float dialspeed = 0;
 
 USBHIDConsumerControl ConsumerControl;
 
@@ -166,6 +170,50 @@ void rainbowCycle()
   FastLED.show();
 }
 
+void rainbowCycleDynamic()
+{
+  if (millis() - lastCycle > 20)
+  {
+    if (lastEncoderDirection == RotaryEncoder::Direction::COUNTERCLOCKWISE)
+    {
+      lastEncoderDirectionExlcudingIdle = RotaryEncoder::Direction::COUNTERCLOCKWISE;
+    }
+    else if (lastEncoderDirection == RotaryEncoder::Direction::CLOCKWISE)
+    {
+      lastEncoderDirectionExlcudingIdle = RotaryEncoder::Direction::CLOCKWISE;
+    }
+
+    if(lastEncoderDirectionExlcudingIdle == RotaryEncoder::Direction::COUNTERCLOCKWISE)
+    {
+      offset -= 1;
+    }
+    else if (lastEncoderDirectionExlcudingIdle == RotaryEncoder::Direction::CLOCKWISE)
+    {
+      offset += 1;
+    }
+    lastCycle = millis();
+  }
+
+  if (lastEncoderDirection == RotaryEncoder::Direction::COUNTERCLOCKWISE)
+  {
+    dialspeed -= RPM / 5000.0;
+  }
+  else if (lastEncoderDirection == RotaryEncoder::Direction::CLOCKWISE)
+  {
+    dialspeed += RPM / 5000.0;
+  }
+
+  dialspeed *= 0.995f;
+  offset += dialspeed;
+
+  for (int i = 0; i < NUM_LEDS; i++)
+  {
+    leds[i] = CHSV((i * 256 / NUM_LEDS) + offset, 255, 255);
+  }
+
+  FastLED.show();
+}
+
 void randomColors()
 {
   if (millis() - lastCycle > 100)
@@ -221,7 +269,7 @@ void readSwitch()
     break;
   case LONG_PRESSED:
     ledMode++;
-    if (ledMode > 4)
+    if (ledMode > 5)
     {
       ledMode = 0;
     }
@@ -272,11 +320,13 @@ void readEncoder()
 {
   encoder.tick();
   int pos = encoder.getPosition();
+  RotaryEncoder::Direction dir = encoder.getDirection();
+  RPM = encoder.getRPM();
 
   if (pos != lastPos)
   {
     // Dividing by 120 gives us a speed factor that works well with the encoder's resolution and the desired volume change rate.
-    int speed = encoder.getRPM() / 120;
+    int speed = RPM / 120;
     if (speed < 1)
     {
       speed = 1;
@@ -285,16 +335,18 @@ void readEncoder()
     {
       speed = 3;
     }
-    if (encoder.getDirection() == RotaryEncoder::Direction::COUNTERCLOCKWISE)
+    if (dir == RotaryEncoder::Direction::COUNTERCLOCKWISE)
     {
       volumeUp();
       counter += 0.5 * speed;
     }
-    else
+    else if (dir == RotaryEncoder::Direction::CLOCKWISE)
     {
       volumeDown();
       counter -= 0.5 * speed;
     }
+
+    lastEncoderDirection = dir;
     prev = millis();
   }
 
@@ -361,12 +413,12 @@ void loop()
   {
   case 0:
   {
-    rainbowCycle();
+    rainbowCycleDynamic();
     break;
   }
   case 1:
   {
-    dynamicBlood();
+    rainbowCycle();
     break;
   }
   case 2:
@@ -380,6 +432,11 @@ void loop()
     break;
   }
   case 4:
+  {
+    dynamicBlood();
+    break;
+  }
+  case 5:
   {
     randomColors();
     break;
